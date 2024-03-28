@@ -4,10 +4,18 @@
             <h5 class="card-title">Tasks</h5>
         </div>
         <div class="card-body">
-            <table class="table table-sm">
+            <Alert
+                v-if="alert.flag"
+                :variant="alert.variant"
+                :message="alert.message"
+            />
+
+            <Loader v-if="isLoading" />
+
+            <table class="table table-sm" v-else>
                 <thead>
                     <tr>
-                        <th scope="col">ID</th>
+                        <th scope="col">#</th>
                         <th scope="col">Task</th>
                         <th scope="col">Status</th>
                         <th scope="col">Attachment</th>
@@ -17,22 +25,33 @@
                 </thead>
                 <tbody v-if="tasks.length">
                     <tr
-                        v-for="task in tasks"
+                        v-for="task, index in tasks"
                         :key="task.id"
                     >
                         <td scope="row">
-                            {{ task.id }}
+                            {{ index + 1 }}
                         </td>
                         <td>{{ task.title}}</td>
                         <td>
                             <TaskStatusSwitch :id="task.id" :status="task.status" />
                         </td>
-                        <td>Attachment</td>
+                        <td>
+                            <a
+                                :href="attachmentURL(task.id)"
+                                v-if="task.filename"
+                            >
+                                {{ task.filename }}
+                            </a>
+
+                            <span v-else> N/A </span>
+                            
+                        </td>
                         <td>{{ task.created_at }}</td>
                         <td>
                             <button
                                 class="btn btn-sm btn-outline-primary"
                                 title="Edit"
+                                @click="updateTask(task)"
                             >
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
@@ -61,15 +80,69 @@
 
 <script setup>
 import { storeToRefs } from 'pinia'
+import Loader from "./Loader.vue"
 import TaskStatusSwitch from './TaskStatusSwitch.vue'
 import { useTaskStore } from "../stores/TaskStore"
+import { ref, onBeforeMount } from 'vue'
+import { API_URL } from '../config'
 
 const taskStore = useTaskStore()
-const { tasks } = storeToRefs(taskStore)
+const { tasks, isLoading } = storeToRefs(taskStore)
+const alert = ref({
+    flag: false,
+    variant: "",
+    message: ""
+})
 
-const deleteTask = (task) => {
-    if (confirm("Are you sure you want to delete this task?")){
-        taskStore.deleteTask(task)
+onBeforeMount(() => { taskStore.fetchTasks() })
+
+const attachmentURL = (id) => API_URL + `tasks/file/${id}`
+
+const updateTask = (task) => {
+    taskStore.toggleOperation()
+    taskStore.setTaskForUpdate(task)
+}
+
+const deleteTask = async (task) => {
+    if (confirm("Are you sure you want to delete this task?")) {
+        try {
+            isLoading.value = true
+            let url = API_URL + `tasks/${task.id}`
+            const response = await fetch (
+                url, {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                }
+            )
+            
+            const result = await response.json()
+
+            if (result.data.status) {
+                taskStore.deleteTask(task)
+                showAlert("success")
+            }
+            console.info("success", result)
+        } catch (error) {
+            showAlert("danger")
+            console.error("Error:", error);
+        } finally {
+            isLoading.value = false
+        }
     }
+}
+
+const showAlert = (variant)  => {
+    alert.value.flag    = true
+    alert.value.variant = variant
+    alert.value.message = variant === "success" ? "Task created successfully!!!" : "Oops!! Looks like something went wrong."
+    closeAlert()
+}
+
+const closeAlert = ()  => {
+    setTimeout(() => {
+        alert.value.flag = false
+    }, 3000)
 }
 </script>

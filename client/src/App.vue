@@ -1,6 +1,9 @@
 <script setup>
 import TaskForm from './components/TaskForm.vue'
 import TasksList from './components/TasksList.vue'
+import { useTaskStore } from './stores/TaskStore'
+
+useTaskStore().$reset()
 </script>
 
 <template>
